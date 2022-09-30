@@ -1,9 +1,22 @@
 use anyhow::Context;
 use scraper::Html;
+use url::Url;
+
+use crate::config::TEST_ASSETS_DIR;
 
 pub enum PageUrl {
     Storia(String),
     Olx(String),
+}
+
+impl TryInto<Url> for PageUrl {
+    type Error = url::ParseError;
+    fn try_into(self) -> Result<Url, Self::Error> {
+        match self {
+            PageUrl::Storia(url) => Url::parse(&url),
+            PageUrl::Olx(url) => Url::parse(&url),
+        }
+    }
 }
 
 impl PageUrl {
@@ -20,12 +33,17 @@ impl PageUrl {
     }
 }
 
-pub fn get_list_next_page_url(document: &Html) -> Option<String> {
+pub fn get_list_next_page_url(document: &Html) -> Option<Url> {
     // TODO: get rid of unwrap
     let selector = scraper::Selector::parse("a[data-cy=\"pagination-forward\"]").unwrap();
     document
         .select(&selector)
-        .find_map(|item| item.value().attr("href").map(|href| format!("https://www.olx.ro{}", href)))
+        .find_map(|item| {
+            item.value()
+                .attr("href")
+                .map(|href| format!("https://www.olx.ro{}", href))
+        })
+        .and_then(|url| Url::parse(&url).ok())
 }
 
 pub fn get_list_urls(document: &Html) -> Vec<PageUrl> {
@@ -39,45 +57,29 @@ pub fn get_list_urls(document: &Html) -> Vec<PageUrl> {
         .collect::<Vec<_>>()
 }
 
-pub async fn update_test_assets(list_page: &str) -> anyhow::Result<()> {
-    let c = [("grid-list-page.html", list_page)];
-    for (file_name, url) in c {
-        download_page(url, file_name).await?;
-    }
-    Ok(())
-}
-
-pub async fn get_page(url: &str) -> anyhow::Result<String> {
-    reqwest::Client::new()
-        .get(url)
+pub fn get_page(url: &Url) -> anyhow::Result<String> {
+    reqwest::blocking::Client::new()
+        .get(url.to_string())
         .send()
-        .await
         .context("Failed to request page.")?
         .error_for_status()
         .context("Response was not 200.")?
         .text()
-        .await
         .context("Failed to parse the body as text")
 }
 
-pub async fn download_page(url: &str, file_name: &str) -> anyhow::Result<()> {
-    let body = get_page(url).await?;
-
-    tokio::fs::write(format!("tests/assets/{}", file_name), body)
-        .await
-        .context("Failed to write file.")?;
-
-    Ok(())
+pub fn save_test_asset(asset_name: &str, body: &str) -> anyhow::Result<()> {
+    std::fs::write(format!("{}/{}", TEST_ASSETS_DIR, asset_name), body)
+        .context("Failed to write test asset file.")
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::get_list_urls;
+    use crate::{utils::get_list_urls, config::TEST_ASSETS_DIR};
 
-    #[tokio::test]
-    async fn can_find_list_items() {
-        let bytes = tokio::fs::read("./tests/assets/grid-list-page.html")
-            .await
+    #[test]
+    fn can_find_list_items() {
+        let bytes = std::fs::read(format!("{}/grid-list-page.html", TEST_ASSETS_DIR))
             .unwrap();
         let html = std::str::from_utf8(bytes.as_ref()).unwrap();
 

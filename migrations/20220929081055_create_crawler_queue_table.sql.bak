@@ -1,0 +1,8 @@
+CREATE TABLE crawler_queue (
+    added_at TIMESTAMPTZ NOT NULL,
+    retries TEXT[],
+    url TEXT NOT NULL,
+    session uuid NOT NULL,
+    type page_type NOT NULL,
+    PRIMARY KEY(session, url)
+)
