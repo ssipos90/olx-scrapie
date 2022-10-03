@@ -1,0 +1,3 @@
+- [x] scrape item page
+  - [x] olx
+  - [x] storia

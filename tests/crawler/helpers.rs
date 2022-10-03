@@ -1,4 +1,3 @@
-use anyhow::Context;
 use olx_scrapie::config::Config;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::env::var;

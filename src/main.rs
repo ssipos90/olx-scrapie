@@ -47,13 +47,15 @@ async fn main() -> anyhow::Result<()> {
             .context("Failed to connect to postgres.")?,
     };
 
+    let olx_next_page_selector = scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
+
     let mut maybe_next_page_url = Some(c.list_page_url);
     while let Some(list_page_url) = maybe_next_page_url {
         let (_list_page, list_page_document) =
             save_list_page_url(&app.pool, &session, &list_page_url)
                 .await
                 .context("Failed to save list page from URL.")?;
-        maybe_next_page_url = get_list_next_page_url(&list_page_document);
+        maybe_next_page_url = get_list_next_page_url(&olx_next_page_selector, &list_page_document);
     }
     Ok(())
 }

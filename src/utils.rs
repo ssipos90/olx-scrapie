@@ -7,7 +7,7 @@ use url::Url;
 use crate::config::TEST_ASSETS_DIR;
 
 #[derive(sqlx::FromRow)]
-pub struct Page<'a> {
+pub struct SavedPage<'a> {
     pub crawled_at: chrono::DateTime<Utc>,
     pub session: &'a uuid::Uuid,
     pub url: String,
@@ -24,16 +24,33 @@ pub enum PageType {
 }
 
 pub enum PageUrl {
-    Storia(String),
-    Olx(String),
+    StoriaItem(Url),
+    OlxItem(Url),
 }
 
-impl TryInto<Url> for PageUrl {
-    type Error = url::ParseError;
-    fn try_into(self) -> Result<Url, Self::Error> {
+impl From<PageUrl> for String {
+    fn from(val: PageUrl) -> Self {
+        match val {
+            PageUrl::StoriaItem(url) => url,
+            PageUrl::OlxItem(url) => url,
+        }.to_string()
+    }
+}
+
+impl From<PageUrl> for PageType {
+    fn from(val: PageUrl) -> Self {
+        match val {
+            PageUrl::StoriaItem(_) => PageType::StoriaItem,
+            PageUrl::OlxItem(_) => PageType::OlxItem,
+        }
+    }
+}
+
+impl AsRef<Url> for PageUrl {
+    fn as_ref(&self) -> &Url {
         match self {
-            PageUrl::Storia(url) => Url::parse(&url),
-            PageUrl::Olx(url) => Url::parse(&url),
+            Self::StoriaItem(url) => url,
+            Self::OlxItem(url) => url,
         }
     }
 }
@@ -41,26 +58,35 @@ impl TryInto<Url> for PageUrl {
 impl PageUrl {
     pub fn parse(url: &str) -> anyhow::Result<Self> {
         if url.starts_with("https://www.storia.ro") || url.starts_with("https://storia.ro") {
-            return Ok(Self::Storia(url.to_string()));
+            return Ok(Self::StoriaItem(Url::parse(url)?));
         }
 
-        if url.starts_with("/d/") {
-            return Ok(Self::Olx(format!("https://www.olx.ro{}", url)));
+        if url.starts_with("https://www.olx.ro/d/oferta/") {
+            return Ok(Self::OlxItem(Url::parse(url)?));
+        }
+
+        if url.starts_with("/d/oferta/") {
+            return Ok(Self::OlxItem(Url::parse(&format!(
+                "https://www.olx.ro{}",
+                url
+            ))?));
         }
 
         Err(anyhow::anyhow!("Don't know how to handle {}", url))
     }
 }
 
-pub fn get_list_next_page_url(document: &Html) -> Option<Url> {
-    // TODO: get rid of unwrap
-    let selector = scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
+pub fn get_list_next_page_url(selector: &scraper::Selector, document: &Html) -> Option<Url> {
     document
-        .select(&selector)
+        .select(selector)
         .find_map(|item| {
-            item.value()
-                .attr("href")
-                .map(|href| if href.starts_with("https://") { href.to_string() } else { format!("https://www.olx.ro{}", href) })
+            item.value().attr("href").map(|href| {
+                if href.starts_with("https://") {
+                    href.to_string()
+                } else {
+                    format!("https://www.olx.ro{}", href)
+                }
+            })
         })
         .and_then(|url| Url::parse(&url).ok())
 }
@@ -69,7 +95,9 @@ pub fn get_list_urls(document: &Html) -> Vec<PageUrl> {
     // let selector =
     //     scraper::Selector::parse("div[data-testid=\"listing-grid\"] > div[data-cy=\"l-card\"] > a")
     //         .unwrap();
-    let selector = scraper::Selector::parse(r#"table#offers_table td.offer a[data-cy="listing-ad-title"]"#).unwrap();
+    let selector =
+        scraper::Selector::parse(r#"table#offers_table td.offer a[data-cy="listing-ad-title"]"#)
+            .unwrap();
     document
         .select(&selector)
         .flat_map(|item| item.value().attr("href"))
@@ -97,8 +125,8 @@ pub async fn save_list_page_url<'a>(
     pool: &PgPool,
     session: &'a uuid::Uuid,
     list_page_url: &Url,
-) -> anyhow::Result<(Page<'a>, Html)> {
-    let list_page = Page {
+) -> anyhow::Result<(SavedPage<'a>, Html)> {
+    let list_page = SavedPage {
         session,
         url: list_page_url.to_string(),
         page_type: PageType::OlxList,
@@ -117,10 +145,7 @@ pub async fn save_list_page_url<'a>(
     tracing::info!("found {} items.", list_page_items.len());
 
     for item_page_url in list_page_items {
-        let item_page_url: Url = item_page_url.try_into()?;
-        if item_page_url.domain().unwrap().contains("olx.ro/") {
-            save_item_page_url(pool, session, &item_page_url).await?;
-        }
+        save_item_page_url(pool, session, &item_page_url).await?;
     }
 
     Ok((list_page, list_page_document))
@@ -130,14 +155,15 @@ pub async fn save_list_page_url<'a>(
 async fn save_item_page_url<'a>(
     pool: &PgPool,
     session: &'a uuid::Uuid,
-    item_page_url: &Url,
-) -> anyhow::Result<Page<'a>> {
-    let item_page = Page {
+    item_page_url: &PageUrl,
+) -> anyhow::Result<SavedPage<'a>> {
+    let url: &Url = item_page_url.as_ref();
+    let item_page = SavedPage {
         session,
-        url: item_page_url.to_string(),
-        page_type: PageType::OlxList,
+        url: url.to_string(),
+        page_type: PageType::OlxItem,
         crawled_at: chrono::Utc::now(),
-        content: get_page(item_page_url).await?,
+        content: get_page(url).await?,
     };
     tracing::info!("URL: {}", item_page.url);
     save_page(pool, &item_page)
@@ -147,7 +173,7 @@ async fn save_item_page_url<'a>(
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn save_page<'a>(pool: &PgPool, page: &Page<'a>) -> sqlx::Result<()> {
+pub async fn save_page<'a>(pool: &PgPool, page: &SavedPage<'a>) -> sqlx::Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO pages
