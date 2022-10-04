@@ -148,9 +148,11 @@ pub async fn save_list_page_url<'a>(
     Ok((list_page, list_page_document))
 }
 
+type PgTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+
 #[tracing::instrument(skip_all)]
-async fn save_item_page_url<'a>(
-    pool: &PgPool,
+pub async fn save_item_page_url<'a>(
+    transaction: &mut PgTransaction<'a>,
     session: &'a uuid::Uuid,
     item_page_url: &PageUrl,
 ) -> anyhow::Result<SavedPage<'a>> {
@@ -163,14 +165,14 @@ async fn save_item_page_url<'a>(
         content: get_page(url).await?,
     };
     tracing::info!("URL: {}", item_page.url);
-    save_page(pool, &item_page)
+    save_page(transaction, &item_page)
         .await
         .context("Failed to save item page")?;
     Ok(item_page)
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn save_page<'a>(pool: &PgPool, page: &SavedPage<'a>) -> sqlx::Result<()> {
+pub async fn save_page<'a>(transaction: &mut PgTransaction<'a>, page: &SavedPage<'a>) -> sqlx::Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO pages
@@ -188,7 +190,7 @@ pub async fn save_page<'a>(pool: &PgPool, page: &SavedPage<'a>) -> sqlx::Result<
         page.page_type as PageType,
         &page.content
     )
-    .execute(pool)
+    .execute(transaction)
     .await?;
     Ok(())
 }

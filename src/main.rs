@@ -1,9 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use olx_scrapie::{
-    config::Config,
-    utils::{get_list_next_page_url, save_list_page_url},
-};
+use olx_scrapie::{config::Config, utils::PageType};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -46,16 +43,37 @@ async fn main() -> anyhow::Result<()> {
             .context("Failed to connect to postgres.")?,
     };
 
-    let olx_next_page_selector =
-        scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
+    //let olx_next_page_selector =
+    //    scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
 
-    let mut maybe_next_page_url = Some(c.list_page_url);
-    while let Some(list_page_url) = maybe_next_page_url {
-        let (_list_page, list_page_document) =
-            save_list_page_url(&app.pool, &session, &list_page_url)
-                .await
-                .context("Failed to save list page from URL.")?;
-        maybe_next_page_url = get_list_next_page_url(&olx_next_page_selector, &list_page_document);
-    }
+    sqlx::query!(
+        r#"
+        INSERT INTO crawler_queue (
+            session,
+            url,
+            page_type,
+            added_at,
+            not_before
+        ) VALUES (
+            $1, $2, $3, NOW(), NOW()
+        )
+        ON CONFLICT (session, url) DO NOTHING
+        "#,
+        session,
+        c.list_page_url.as_str(),
+        PageType::OlxList as PageType,
+    )
+    .execute(&app.pool)
+    .await?;
+
+    processJobs().await;
+    // let mut maybe_next_page_url = Some(c.list_page_url);
+    // while let Some(list_page_url) = maybe_next_page_url {
+    //     let (_list_page, list_page_document) =
+    //         save_list_page_url(&app.pool, &session, &list_page_url)
+    //             .await
+    //             .context("Failed to save list page from URL.")?;
+    //     maybe_next_page_url = get_list_next_page_url(&olx_next_page_selector, &list_page_document);
+    // }
     Ok(())
 }
