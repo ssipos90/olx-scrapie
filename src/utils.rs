@@ -92,9 +92,6 @@ pub fn get_list_next_page_url(selector: &scraper::Selector, document: &Html) -> 
 }
 
 pub fn get_list_urls(document: &Html) -> Vec<PageUrl> {
-    // let selector =
-    //     scraper::Selector::parse("div[data-testid=\"listing-grid\"] > div[data-cy=\"l-card\"] > a")
-    //         .unwrap();
     let selector =
         scraper::Selector::parse(r#"table#offers_table td.offer a[data-cy="listing-ad-title"]"#)
             .unwrap();

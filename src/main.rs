@@ -28,14 +28,13 @@ async fn main() -> anyhow::Result<()> {
 
     let session: Uuid = match args.session {
         Some(s) => {
-            let uuid = Uuid::try_parse(&s)
-                .context("Failed to parse UUID")?;
+            let uuid = Uuid::try_parse(&s).context("Failed to parse UUID")?;
             match uuid.get_version() {
                 Some(uuid::Version::Random) => uuid,
                 _ => panic!("Only UUID v4 is allowed"),
             }
-        },
-        None => Uuid::new_v4()
+        }
+        None => Uuid::new_v4(),
     };
 
     // let update_assets = args.update_assets.unwrap_or(false);
@@ -47,7 +46,8 @@ async fn main() -> anyhow::Result<()> {
             .context("Failed to connect to postgres.")?,
     };
 
-    let olx_next_page_selector = scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
+    let olx_next_page_selector =
+        scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
 
     let mut maybe_next_page_url = Some(c.list_page_url);
     while let Some(list_page_url) = maybe_next_page_url {
