@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use olx_scrapie::{config::Config, utils::PageType};
+use olx_scrapie::{config::Config, utils::PageType, jobs::processJobs};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -66,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
     .execute(&app.pool)
     .await?;
 
-    processJobs().await;
+    process_job().await;
     // let mut maybe_next_page_url = Some(c.list_page_url);
     // while let Some(list_page_url) = maybe_next_page_url {
     //     let (_list_page, list_page_document) =

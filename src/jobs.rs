@@ -19,7 +19,7 @@ pub struct CrawlJob {
     page_type: PageType,
 }
 
-pub async fn processJobs(pool: &PgPool) -> Result<(), anyhow::Error> {
+pub async fn process_job(pool: &PgPool) -> Result<(), anyhow::Error> {
     loop {
         let mut transaction = pool.begin().await?;
         let job_result = sqlx::query_as!(
@@ -39,8 +39,11 @@ pub async fn processJobs(pool: &PgPool) -> Result<(), anyhow::Error> {
         .await;
         match job_result {
             Ok(Some(job)) => {
+                let url = url::Url::parse(&job.url);
                 match job.page_type {
-                    PageType::OlxItem => save_item_page_url(&mut transaction, job.session, job.url),
+                    PageType::OlxItem => {
+                        save_item_page_url(&mut transaction, &job.session, &url)
+                    }
                     PageType::OlxList => todo!(),
                     PageType::StoriaItem => todo!(),
                 };
