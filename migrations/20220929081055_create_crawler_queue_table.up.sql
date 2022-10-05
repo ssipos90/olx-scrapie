@@ -5,7 +5,8 @@ CREATE TABLE crawler_queue (
     page_type page_type NOT NULL,
     added_at TIMESTAMPTZ NOT NULL,
     not_before TIMESTAMPTZ NOT NULL,
-    retries TEXT[],
+    retries TEXT[] NOT NULL,
+    failure_error TEXT,
 
     PRIMARY KEY(session, url)
 )

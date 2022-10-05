@@ -1,6 +1,6 @@
 - [ ] implement session persistance
   - [ ] save current session in database
-  - [ ] move each job in a queue
+  - [x] move each job in a queue
 
 - [x] scrape item page
   - [x] olx

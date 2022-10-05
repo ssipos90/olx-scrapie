@@ -1,10 +1,11 @@
 use anyhow::Context;
 use chrono::Utc;
 use scraper::Html;
-use sqlx::PgPool;
 use url::Url;
 
 use crate::config::TEST_ASSETS_DIR;
+
+pub type PgTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
 #[derive(sqlx::FromRow)]
 pub struct SavedPage<'a> {
@@ -33,12 +34,13 @@ impl From<PageUrl> for String {
         match val {
             PageUrl::StoriaItem(url) => url,
             PageUrl::OlxItem(url) => url,
-        }.to_string()
+        }
+        .to_string()
     }
 }
 
-impl From<PageUrl> for PageType {
-    fn from(val: PageUrl) -> Self {
+impl From<&PageUrl> for PageType {
+    fn from(val: &PageUrl) -> Self {
         match val {
             PageUrl::StoriaItem(_) => PageType::StoriaItem,
             PageUrl::OlxItem(_) => PageType::OlxItem,
@@ -76,9 +78,11 @@ impl PageUrl {
     }
 }
 
-pub fn get_list_next_page_url(selector: &scraper::Selector, document: &Html) -> Option<Url> {
+pub fn get_list_next_page_url(document: &Html) -> Option<Url> {
+    let selector =
+        scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
     document
-        .select(selector)
+        .select(&selector)
         .find_map(|item| {
             item.value().attr("href").map(|href| {
                 if href.starts_with("https://") {
@@ -119,44 +123,41 @@ pub async fn get_page(url: &Url) -> anyhow::Result<String> {
 
 #[tracing::instrument(skip_all)]
 pub async fn save_list_page_url<'a>(
-    pool: &PgPool,
+    transaction: &mut PgTransaction<'a>,
     session: &'a uuid::Uuid,
-    list_page_url: &Url,
+    url: &Url,
 ) -> anyhow::Result<(SavedPage<'a>, Html)> {
     let list_page = SavedPage {
         session,
-        url: list_page_url.to_string(),
+        url: url.to_string(),
         page_type: PageType::OlxList,
         crawled_at: chrono::Utc::now(),
-        content: get_page(list_page_url).await?,
+        content: get_page(url).await?,
     };
     tracing::info!("URL: {}", list_page.url);
 
     let list_page_document = scraper::Html::parse_document(&list_page.content);
 
-    save_page(pool, &list_page)
+    save_page(transaction, &list_page)
         .await
         .context("Failed to save list page")?;
 
     let list_page_items = get_list_urls(&list_page_document);
     tracing::info!("found {} items.", list_page_items.len());
 
-    for item_page_url in list_page_items {
-        save_item_page_url(pool, session, &item_page_url).await?;
-    }
+    // for item_page_url in list_page_items {
+    //     save_item_page_url(pool, session, &item_page_url).await?;
+    // }
 
     Ok((list_page, list_page_document))
 }
 
-type PgTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
-
 #[tracing::instrument(skip_all)]
-pub async fn save_item_page_url<'a>(
+pub async fn save_item_page<'a, 'b>(
     transaction: &mut PgTransaction<'a>,
-    session: &'a uuid::Uuid,
-    item_page_url: &PageUrl,
-) -> anyhow::Result<SavedPage<'a>> {
-    let url: &Url = item_page_url.as_ref();
+    session: &'b uuid::Uuid,
+    url: &Url,
+) -> anyhow::Result<SavedPage<'b>> {
     let item_page = SavedPage {
         session,
         url: url.to_string(),
@@ -172,7 +173,10 @@ pub async fn save_item_page_url<'a>(
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn save_page<'a>(transaction: &mut PgTransaction<'a>, page: &SavedPage<'a>) -> sqlx::Result<()> {
+pub async fn save_page<'a, 'b>(
+    transaction: &mut PgTransaction<'a>,
+    page: &SavedPage<'b>,
+) -> sqlx::Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO pages
