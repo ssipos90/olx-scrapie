@@ -24,6 +24,20 @@ pub enum PageType {
     StoriaItem,
 }
 
+impl std::fmt::Display for PageType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::OlxList => "OLX List",
+                Self::OlxItem => "Olx Item",
+                Self::StoriaItem => "Storia Item",
+            }
+        )
+    }
+}
+
 pub enum PageUrl {
     StoriaItem(Url),
     OlxItem(Url),
@@ -79,8 +93,7 @@ impl PageUrl {
 }
 
 pub fn get_list_next_page_url(document: &Html) -> Option<Url> {
-    let selector =
-        scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
+    let selector = scraper::Selector::parse("div.pager a[data-cy=\"page-link-next\"]").unwrap();
     document
         .select(&selector)
         .find_map(|item| {
@@ -106,6 +119,7 @@ pub fn get_list_urls(document: &Html) -> Vec<PageUrl> {
         .collect::<Vec<_>>()
 }
 
+#[tracing::instrument(skip_all, fields(url = %url))]
 pub async fn get_page(url: &Url) -> anyhow::Result<String> {
     reqwest::Client::new()
         .get(url.to_string())
@@ -121,7 +135,7 @@ pub async fn get_page(url: &Url) -> anyhow::Result<String> {
         .context("Failed to parse the body as text")
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(url = %url))]
 pub async fn save_list_page_url<'a>(
     transaction: &mut PgTransaction<'a>,
     session: &'a uuid::Uuid,
@@ -152,7 +166,7 @@ pub async fn save_list_page_url<'a>(
     Ok((list_page, list_page_document))
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(url = %url))]
 pub async fn save_item_page<'a, 'b>(
     transaction: &mut PgTransaction<'a>,
     session: &'b uuid::Uuid,

@@ -23,7 +23,13 @@ pub struct RetrievedCrawlJob {
     retries: Vec<String>,
 }
 
-pub async fn process_jobs(pool: &PgPool) {
+impl std::fmt::Display for RetrievedCrawlJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", &self.page_type, &self.url)
+    }
+}
+
+pub async fn process_jobs(pool: &PgPool, session: &uuid::Uuid) {
     loop {
         if let Ok(mut transaction) = pool.begin().await {
             let job_result = sqlx::query_as!(
@@ -37,10 +43,12 @@ pub async fn process_jobs(pool: &PgPool) {
                 FROM crawler_queue
                 WHERE
                   status IN ('new', 'retrying')
-                  AND not_before >= NOW()
-                LIMIT 1
+                  AND session=$1
                 FOR UPDATE
-                "#
+                SKIP LOCKED
+                LIMIT 1
+                "#,
+                session
             )
             .fetch_optional(&mut transaction)
             .await;
@@ -52,11 +60,41 @@ pub async fn process_jobs(pool: &PgPool) {
                     Err(e) => {
                         tracing::error!("Failed to process job {:?}", e);
                         return;
-                    },
+                    }
                 },
                 Ok(None) => {
-                    tracing::info!("No more jobs in queue");
-                    return;
+                    tracing::info!("No more immediate jobs in queue");
+                    transaction.rollback().await.ok();
+                    match sqlx::query!(
+                        r#"
+                        SELECT
+                          not_before
+                        FROM crawler_queue
+                        WHERE
+                          status IN ('new', 'retrying')
+                          AND session=$1
+                        LIMIT 1
+                        "#,
+                        session
+                    )
+                    .fetch_optional(pool)
+                    .await
+                    {
+                        Ok(Some(result)) => {
+                            let utc: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
+                            let smf = result.not_before.signed_duration_since(utc);
+                            tracing::info!("Next job in {} seconds, sleeping...", smf.num_seconds());
+
+                            std::thread::sleep(smf.to_std().unwrap());
+                        }
+                        Ok(None) => {
+                            tracing::info!("No defered jobs in queue. Exiting.");
+                            return;
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to check for defered job {:?}", e);
+                        }
+                    }
                 }
                 Err(e) => {
                     tracing::error!("Failed to fetch next job {:?}", e);
@@ -66,6 +104,7 @@ pub async fn process_jobs(pool: &PgPool) {
     }
 }
 
+#[tracing::instrument(skip_all)]
 async fn mark_failed<'a>(
     transaction: &mut PgTransaction<'a>,
     job: &RetrievedCrawlJob,
@@ -89,6 +128,7 @@ async fn mark_failed<'a>(
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(job = %job))]
 async fn process_job<'a>(
     transaction: &mut PgTransaction<'a>,
     job: &RetrievedCrawlJob,
@@ -110,29 +150,36 @@ async fn process_job<'a>(
             .context("Failed to update crawled job status")?;
         }
         Err(ProcessedJobError::RetryableError(e)) => {
-            if job.retries.len() >= MAX_RETRIES - 1 {
+            let current_retries = job.retries.len() + 1;
+            if current_retries >= MAX_RETRIES {
+                tracing::info!(
+                    "Exhausted MAX_RETRIES, marking as failed with error: {:?}",
+                    e
+                );
                 mark_failed(transaction, job, &e).await?;
             } else {
+                tracing::error!("Failed with retryable error: {:?}.", e);
+                tracing::info!("Re-queueing job (count: {}).", current_retries);
                 sqlx::query!(
                     r#"
                     UPDATE crawler_queue
                     SET
                       status='failed',
                       retries=array_append(retries, $3),
-                      not_before=CURRENT_TIMESTAMP + ($4 * interval '1 minute')
+                      not_before=CURRENT_TIMESTAMP
                     WHERE session=$1
                     AND url=$2
                     "#,
                     &job.session,
                     &job.url,
                     e.to_string(),
-                    1.0
                 )
                 .execute(transaction)
                 .await?;
             }
         }
         Err(ProcessedJobError::FatalError(e)) => {
+            tracing::error!("Failed with fatal error: {:?}.", e);
             mark_failed(transaction, job, &e).await?;
         }
     };
@@ -144,6 +191,7 @@ enum ProcessedJobError {
     FatalError(anyhow::Error),
 }
 
+#[tracing::instrument(skip_all)]
 async fn run_job<'a>(
     transaction: &mut PgTransaction<'a>,
     job: &RetrievedCrawlJob,
@@ -153,6 +201,7 @@ async fn run_job<'a>(
         .map_err(ProcessedJobError::FatalError)?;
     match job.page_type {
         PageType::OlxItem => {
+            tracing::info!("saving olx item page: {}", &url);
             let page = SavedPage {
                 session: &job.session,
                 url: url.to_string(),
@@ -162,12 +211,14 @@ async fn run_job<'a>(
                     .await
                     .map_err(ProcessedJobError::RetryableError)?,
             };
+
             save_page(transaction, &page)
                 .await
                 .context("Failed to save page")
                 .map_err(ProcessedJobError::RetryableError)?;
         }
         PageType::StoriaItem => {
+            tracing::info!("saving storia item page: {}", &url);
             let page = SavedPage {
                 session: &job.session,
                 url: url.to_string(),
@@ -183,16 +234,20 @@ async fn run_job<'a>(
                 .map_err(ProcessedJobError::RetryableError)?;
         }
         PageType::OlxList => {
+            tracing::info!("saving olx list page: {}", &url);
             let content = get_page(&url)
                 .await
                 .map_err(ProcessedJobError::RetryableError)?;
             let document = scraper::Html::parse_document(&content);
             if let Some(url) = get_list_next_page_url(&document) {
+                tracing::info!("Found next page url");
                 insert_job(transaction, &job.session, &url, PageType::OlxList)
                     .await
                     .map_err(ProcessedJobError::RetryableError)?;
             }
-            for page_url in get_list_urls(&document) {
+            let pages_urls = get_list_urls(&document);
+            tracing::info!("Found {} item urls", pages_urls.len());
+            for page_url in pages_urls {
                 insert_job(
                     transaction,
                     &job.session,

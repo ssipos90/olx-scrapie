@@ -1,6 +1,10 @@
 use anyhow::Context;
 use clap::Parser;
-use olx_scrapie::{config::Config, jobs::process_jobs, utils::PageType};
+use olx_scrapie::{
+    config::Config,
+    jobs::{insert_job, process_jobs},
+    utils::PageType,
+};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -23,17 +27,6 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Cli::parse();
 
-    let session: Uuid = match args.session {
-        Some(s) => {
-            let uuid = Uuid::try_parse(&s).context("Failed to parse UUID")?;
-            match uuid.get_version() {
-                Some(uuid::Version::Random) => uuid,
-                _ => panic!("Only UUID v4 is allowed"),
-            }
-        }
-        None => Uuid::new_v4(),
-    };
-
     // let update_assets = args.update_assets.unwrap_or(false);
 
     let app = App {
@@ -43,16 +36,30 @@ async fn main() -> anyhow::Result<()> {
             .context("Failed to connect to postgres.")?,
     };
 
-    insert_job().await?;
+    let session = match args.session {
+        Some(s) => {
+            let uuid = Uuid::try_parse(&s).context("Failed to parse UUID")?;
+            match uuid.get_version() {
+                Some(uuid::Version::Random) => uuid,
+                _ => panic!("Only UUID v4 is allowed"),
+            }
+        }
+        None => {
+            let session = Uuid::new_v4();
+            let mut transaction = app.pool.begin().await?;
+            insert_job(
+                &mut transaction,
+                &session,
+                &c.list_page_url,
+                PageType::OlxList,
+            )
+            .await?;
+            transaction.commit().await?;
+            session
+        },
+    };
 
-    process_jobs(&app.pool).await?;
-    // let mut maybe_next_page_url = Some(c.list_page_url);
-    // while let Some(list_page_url) = maybe_next_page_url {
-    //     let (_list_page, list_page_document) =
-    //         save_list_page_url(&app.pool, &session, &list_page_url)
-    //             .await
-    //             .context("Failed to save list page from URL.")?;
-    //     maybe_next_page_url = get_list_next_page_url(&olx_next_page_selector, &list_page_document);
-    // }
+    process_jobs(&app.pool, &session).await;
+
     Ok(())
 }
