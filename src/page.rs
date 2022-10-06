@@ -200,12 +200,12 @@ pub async fn save_page<'a, 'b>(
           url,
           page_type,
           content
-        ) VALUES (NOW(), $1, $2, $3, $4)
+        ) VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4)
         ON CONFLICT (session, url) DO NOTHING
         "#,
         &page.session,
         &page.url.to_string(),
-        page.page_type as PageType,
+        &page.page_type as &PageType,
         &page.content
     )
     .execute(transaction)

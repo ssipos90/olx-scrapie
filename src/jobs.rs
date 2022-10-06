@@ -29,7 +29,7 @@ impl std::fmt::Display for RetrievedCrawlJob {
     }
 }
 
-pub async fn process_jobs(pool: &PgPool, session: &uuid::Uuid) {
+pub async fn process_jobs(pool: &PgPool, session: &uuid::Uuid) -> anyhow::Result<()> {
     loop {
         if let Ok(mut transaction) = pool.begin().await {
             let job_result = sqlx::query_as!(
@@ -59,7 +59,7 @@ pub async fn process_jobs(pool: &PgPool, session: &uuid::Uuid) {
                     }
                     Err(e) => {
                         tracing::error!("Failed to process job {:?}", e);
-                        return;
+                        return Err(e);
                     }
                 },
                 Ok(None) => {
@@ -91,8 +91,8 @@ pub async fn process_jobs(pool: &PgPool, session: &uuid::Uuid) {
                             std::thread::sleep(timeout.to_std().unwrap());
                         }
                         Ok(None) => {
-                            tracing::info!("No defered jobs in queue. Exiting.");
-                            return;
+                            tracing::info!("No defered jobs in queue. Completing session.");
+                            return Ok(());
                         }
                         Err(e) => {
                             tracing::error!("Failed to check for defered job {:?}", e);
@@ -202,7 +202,6 @@ async fn run_job<'a>(
     let url = url::Url::parse(&job.url)
         .context("Failed to parse error.")
         .map_err(ProcessedJobError::FatalError)?;
-
     match job.page_type {
         PageType::OlxItem => {
             tracing::info!("saving olx item page: {}", &url);
@@ -282,7 +281,7 @@ pub async fn insert_job<'a>(
             added_at,
             not_before
         ) VALUES (
-            $1, $2, $3, NOW(), NOW()
+            $1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
         ON CONFLICT (session, url) DO NOTHING
         "#,
