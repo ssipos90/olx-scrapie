@@ -82,10 +82,13 @@ pub async fn process_jobs(pool: &PgPool, session: &uuid::Uuid) {
                     {
                         Ok(Some(result)) => {
                             let utc: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
-                            let smf = result.not_before.signed_duration_since(utc);
-                            tracing::info!("Next job in {} seconds, sleeping...", smf.num_seconds());
+                            let timeout = result.not_before.signed_duration_since(utc);
+                            tracing::info!(
+                                "Next job in {} seconds, sleeping...",
+                                timeout.num_seconds()
+                            );
 
-                            std::thread::sleep(smf.to_std().unwrap());
+                            std::thread::sleep(timeout.to_std().unwrap());
                         }
                         Ok(None) => {
                             tracing::info!("No defered jobs in queue. Exiting.");
@@ -199,6 +202,7 @@ async fn run_job<'a>(
     let url = url::Url::parse(&job.url)
         .context("Failed to parse error.")
         .map_err(ProcessedJobError::FatalError)?;
+
     match job.page_type {
         PageType::OlxItem => {
             tracing::info!("saving olx item page: {}", &url);
