@@ -1,3 +1,3 @@
 pub mod config;
-pub mod utils;
+pub mod page;
 pub mod jobs;

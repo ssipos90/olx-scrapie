@@ -3,7 +3,7 @@ use clap::Parser;
 use olx_scrapie::{
     config::Config,
     jobs::{insert_job, process_jobs},
-    utils::PageType,
+    page::PageType,
 };
 use sqlx::PgPool;
 use uuid::Uuid;

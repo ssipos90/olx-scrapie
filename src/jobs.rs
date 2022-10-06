@@ -1,4 +1,4 @@
-use crate::utils::{
+use crate::page::{
     get_list_next_page_url, get_list_urls, get_page, save_page, PageType, PgTransaction, SavedPage,
 };
 use anyhow::Context;

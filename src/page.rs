@@ -220,7 +220,7 @@ pub fn save_test_asset(asset_name: &str, body: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{config::TEST_ASSETS_DIR, utils::get_list_urls};
+    use crate::{config::TEST_ASSETS_DIR, page::get_list_urls};
 
     #[test]
     fn can_find_list_items() {
