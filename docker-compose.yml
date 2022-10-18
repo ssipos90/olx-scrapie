@@ -1,5 +1,0 @@
-services:
-  redis:
-    image: redis:6-alpine
-    ports:
-      - "6397:6397"

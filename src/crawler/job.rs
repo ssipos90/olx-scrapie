@@ -1,4 +1,4 @@
-use crate::page::{
+use crate::crawler::page::{
     get_list_next_page_url, get_list_urls, get_page, save_page, PageType, PgTransaction, SavedPage,
 };
 use anyhow::Context;
@@ -29,6 +29,7 @@ impl std::fmt::Display for RetrievedCrawlJob {
     }
 }
 
+#[tracing::instrument(skip(pool))]
 pub async fn process_jobs(pool: &PgPool, session: &uuid::Uuid) -> anyhow::Result<()> {
     loop {
         if let Ok(mut transaction) = pool.begin().await {
