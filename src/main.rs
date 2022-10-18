@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use olx_scrapie::{config::Config, crawler::command::CrawlCmd};
+use olx_scrapie::{config::Config, crawler::command::CrawlCmd, extract::ExtractCmd};
 
 /// Search for a pattern in a file and display the lines that contain it.
 #[derive(clap::Parser)]
@@ -12,6 +12,7 @@ struct Cli {
 #[derive(clap::Subcommand)]
 enum Commands {
     Crawl(CrawlCmd),
+    Extract(ExtractCmd),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -24,5 +25,6 @@ fn main() -> anyhow::Result<()> {
 
     match args.command {
         Commands::Crawl(cmd) => cmd.work(&cfg),
+        Commands::Extract(cmd) => cmd.work(&cfg),
     }
 }
