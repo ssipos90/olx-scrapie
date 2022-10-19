@@ -78,7 +78,7 @@ pub async fn crawl<'a>(options: &'a CrawlOptions<'a>) -> anyhow::Result<()> {
         let result = sqlx::query!(
             r#"
             UPDATE sessions
-            SET completed_at=CURRENT_TIMESTAMP
+            SET crawled_at=CURRENT_TIMESTAMP
             WHERE session=$1
             "#,
             &session
