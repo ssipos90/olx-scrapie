@@ -1,10 +1,20 @@
 # Olx Scrapie
 
-olx.ro (and connex storia.ro) real estate scraper.
+olx.ro (and connex storia.ro items) real estate scraper ().
 
 ## Todo
-- [ ] implement session persistance
-  - [ ] save current session in database
+- [ ] extract data from pages
+  - [x] async workers
+  - [ ] establish data structure
+  - [ ] selectors and processors
+
+- [ ] Sessions management (upgrade listing sessions)
+  - [ ] List sessions
+  - [ ] Deleting a session
+  - [ ] Show session stats
+
+- [x] implement session persistance
+  - [x] save current session in database
   - [x] move each job in a queue
 
 - [x] scrape item page
