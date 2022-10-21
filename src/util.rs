@@ -1,6 +1,8 @@
 use anyhow::Context;
 use uuid::Uuid;
 
+pub type PgTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+
 pub fn try_parse_session(s: &str) -> anyhow::Result<Uuid> {
     let session = Uuid::try_parse(s)
         .context("Failed to parse UUID")?;

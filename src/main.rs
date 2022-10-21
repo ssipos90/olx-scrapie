@@ -4,7 +4,7 @@ use olx_scrapie::{
     config::Config,
     crawler::command::CrawlCmd,
     extract::command::ExtractCmd,
-    list_sessions::ListSessionsCmd,
+    session::ListSessionsCmd,
 };
 
 /// Search for a pattern in a file and display the lines that contain it.

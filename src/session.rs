@@ -1,4 +1,6 @@
 use anyhow::Context;
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use crate::config::Config;
 
@@ -43,4 +45,10 @@ impl ListSessionsCmd {
                 Ok(())
             })
     }
+}
+
+pub struct Session {
+    pub crawled_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub session: Uuid,
 }

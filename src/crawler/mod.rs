@@ -6,12 +6,9 @@ use anyhow::Context;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::config::Config;
+use crate::{config::Config, page::PageType};
 
-use self::{
-    job::{insert_job, process_jobs},
-    page::PageType,
-};
+use self::job::{insert_job, process_jobs};
 
 pub struct CrawlOptions<'a> {
     pub config: &'a Config,

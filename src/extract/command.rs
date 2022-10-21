@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use crate::{config::Config, util::try_parse_session};
 
-use super::{extract, ExtractOptions};
+use super::extractor::{ExtractOptions, extract};
 
 #[derive(clap::Args)]
 pub struct ExtractCmd {
