@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{config::Config, page::PageType, session::Session};
 
-use super::classified::{Classified, SellerType, Layout};
+use super::classified::{CardinalDirection, Classified, Layout, PropertyType, SellerType};
 
 pub struct SavedPage {
     pub content: String,
@@ -43,49 +43,55 @@ struct Extractor {
     // storia: ExtractorSelectors,
 }
 
+fn parse_selector(selector: &str) -> anyhow::Result<scraper::Selector> {
+    scraper::Selector::parse(selector)
+        // Swallow the error for now
+        .map_err(|_| anyhow::anyhow!("Failed to build the css selector."))
+}
+
 impl Extractor {
     fn try_new() -> anyhow::Result<Self> {
         Ok(Self {
             olx: ExtractorSelectors {
-                published_at: scraper::Selector::parse(r#"span[data-cy="ad-posted-at"]"#)?,
-                title: scraper::Selector::parse(r#"h1[data-cy="ad_title"]"#)?,
-                price: scraper::Selector::parse(r#"div[data-testid="ad-price-container"] h3"#)?,
-                negotiable: scraper::Selector::parse(
+                published_at: parse_selector(r#"span[data-cy="ad-posted-at"]"#)?,
+                title: parse_selector(r#"h1[data-cy="ad_title"]"#)?,
+                price: parse_selector(r#"div[data-testid="ad-price-container"] h3"#)?,
+                negotiable: parse_selector(
                     r#"div[data-testid="ad-price-container"] p[data-testid=negotiable-label]"#,
                 )?,
-                seller_type: scraper::Selector::parse(
+                seller_type: parse_selector(
                     r#"div[data-cy="seller_card"] div[data-testid="trader-title"]"#,
                 )?,
-                seller_name: scraper::Selector::parse(
+                seller_name: parse_selector(
                     r#"div[data-cy="seller_card"] a[data-testid="user-profile-link"] h4"#,
                 )?,
-                layout: scraper::Selector::parse(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
-                surface: scraper::Selector::parse(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
-                face: scraper::Selector::parse(r#""#)?,
-                year: scraper::Selector::parse(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
-                floor: scraper::Selector::parse(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
-                property_type: scraper::Selector::parse(r#""#)?,
-                room_count: scraper::Selector::parse(r#""#)?,
+                layout: parse_selector(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
+                surface: parse_selector(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
+                face: parse_selector(r#""#)?,
+                year: parse_selector(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
+                floor: parse_selector(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
+                property_type: parse_selector(r#""#)?,
+                room_count: parse_selector(r#""#)?,
             },
             // storia: ExtractorSelectors {
             // },
         })
     }
 
-    fn extract(&self, page: &SavedPage) -> anyhow::Result<()> {
+    fn extract<'a, 'b>(&self, session: &'a Uuid, page: &'b SavedPage) -> anyhow::Result<Classified<'a, 'b>> {
         let document = Html::parse_document(&page.content);
 
-        let data = match page.page_type {
-            PageType::OlxItem => Classified {
-                session: page.session,
+        match page.page_type {
+            PageType::OlxItem => Ok(Classified {
+                session,
                 url: &page.url,
                 published_at: document
                     .select(&self.olx.published_at)
-                    .find_map(|item| item.text().find(|_| true))
+                    .find_map(|item| item.text().map(|s| s.to_string()).next())
                     .ok_or_else(|| anyhow::anyhow!("Failed to find published at date."))?,
                 title: document
                     .select(&self.olx.title)
-                    .find_map(|item| item.text().find(|_| true))
+                    .find_map(|item| item.text().map(|s| s.to_string()).next())
                     .ok_or_else(|| anyhow::anyhow!("Failed to find title."))?,
                 price: document
                     .select(&self.olx.title)
@@ -96,43 +102,41 @@ impl Extractor {
                     .select(&self.olx.negotiable)
                     .find_map(|item| item.text().find(|_| true))
                     .map_or(false, |s| s.contains("negociabil")),
-                seller_type: &document
+                seller_type: document
                     .select(&self.olx.seller_type)
                     .find_map(|item| item.text().find(|_| true))
                     .map_or(Ok(SellerType::Company), SellerType::try_from)?,
                 seller_name: document
                     .select(&self.olx.seller_name)
-                    .find_map(|item| item.text().find(|_| true))
+                    .find_map(|item| item.text().map(|s| s.to_string()).next())
                     .ok_or_else(|| anyhow::anyhow!("Failed to find seller name."))?,
-                layout: &document
+                layout: document
                     .select(&self.olx.seller_type)
-                    .find_map(|item| item.text().find(|_| true))
-                    .map(|x|)
-                    .map(|s| Layout::try_from(s)),
+                    .find_map(|item| item.text().find_map(|s| Layout::try_from(s).ok())),
                 surface: document
                     .select(&self.olx.surface)
-                    .find_map(|item| item.text().find(|_| true)),
+                    .find_map(|item| item.text().find_map(|s| s.parse().ok())),
                 property_type: document
                     .select(&self.olx.property_type)
-                    .find_map(|item| item.text().find(|_| true)),
-                face: document
-                    .select(&self.olx.property_type)
-                    .find_map(|item| item.text().find(|_| true)),
+                    .find_map(|item| item.text().find_map(|s| PropertyType::try_from(s).ok()))
+                    .unwrap_or(PropertyType::Apartment),
+                face: document.select(&self.olx.property_type).find_map(|item| {
+                    item.text()
+                        .find_map(|s| CardinalDirection::try_from(s).ok())
+                }),
                 year: document
-                    .select(&self.olx.property_type)
-                    .find_map(|item| item.text().find(|_| true)),
+                    .select(&self.olx.year)
+                    .find_map(|item| item.text().find_map(|s| s.parse().ok())),
                 floor: document
-                    .select(&self.olx.property_type)
-                    .find_map(|item| item.text().find(|_| true)),
+                    .select(&self.olx.floor)
+                    .find_map(|item| item.text().find_map(|s| s.parse().ok())),
                 room_count: document
-                    .select(&self.olx.property_type)
-                    .find_map(|item| item.text().find(|_| true)),
-            },
+                    .select(&self.olx.room_count)
+                    .find_map(|item| item.text().find_map(|s| s.parse().ok())),
+            }),
             // PageType::StoriaItem => self.storia,
-            _ => return Err(anyhow::anyhow!("Only item pages have extractors.")),
-        };
-
-        Ok(())
+            _ => Err(anyhow::anyhow!("Only item pages have extractors.")),
+        }
     }
 }
 
@@ -168,7 +172,7 @@ async fn work(pool: PgPool, session: Uuid) -> anyhow::Result<()> {
     loop {
         match load_saved_page(&pool, &session).await {
             Ok(Some(page)) => {
-                let classified = extractor.extract(&page)?;
+                let classified = extractor.extract(&session, &page)?;
 
                 sqlx::query!(
                     r#"
