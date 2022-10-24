@@ -7,10 +7,10 @@ async fn dummy() {
     let app = spawn_app().await;
 
     let server = MockServer::start();
-    let mock = server.mock(|when, then| {
+    let _mock = server.mock(|when, then| {
         when.path(app.config.list_page_url);
         then
             .body_from_file(format!("{}/{}", TEST_ASSETS_DIR, "grid-list-page.html"));
     });
-    assert!(true);
+    // assert!(true);
 }

@@ -1,5 +1,8 @@
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+#[derive(sqlx::Type, Copy, Clone)]
+#[sqlx(type_name = "seller_type", rename_all = "snake_case")]
 pub enum SellerType {
     Private,
     Company,
@@ -17,6 +20,8 @@ impl TryFrom<&str> for SellerType {
     }
 }
 
+#[derive(sqlx::Type, Copy, Clone)]
+#[sqlx(type_name = "proparty_layout", rename_all = "snake_case")]
 pub enum Layout {
     Wagon,
     SemiFancy,
@@ -36,6 +41,8 @@ impl TryFrom<&str> for Layout {
     }
 }
 
+#[derive(sqlx::Type, Copy, Clone)]
+#[sqlx(type_name = "cardinal_direction", rename_all = "snake_case")]
 pub enum CardinalDirection {
     North,
     South,
@@ -57,9 +64,40 @@ impl TryFrom<&str> for CardinalDirection {
     }
 }
 
+#[derive(sqlx::Type, Copy, Clone)]
+#[sqlx(type_name = "property_type", rename_all = "snake_case")]
 pub enum PropertyType {
     Apartment,
     House,
+}
+
+const APARTMENT_MATCHES: [&str;6] = [
+    "apartament",
+    "Apartament",
+    "garsoniera",
+    "Garsoniera",
+    "studio",
+    "Studio",
+];
+
+const HOUSE_MATCHES: [&str;4] = [
+    "casa",
+    "Casa",
+    "vila",
+    "Vila",
+];
+
+impl PropertyType {
+    fn from_str (default: Self, value: &str) -> Self {
+        if APARTMENT_MATCHES.iter().any(|&m| value.contains(m)) {
+            return Self::Apartment;
+        }
+        if HOUSE_MATCHES.iter().any(|&m| value.contains(m)) {
+            return Self::House;
+        }
+
+        default
+    }
 }
 
 impl TryFrom<&str> for PropertyType {
@@ -79,16 +117,16 @@ pub struct Classified<'a, 'b> {
     pub url: &'b str,
 
     pub face: Option<CardinalDirection>,
-    pub floor: Option<u8>,
+    pub floor: Option<i16>,
     pub layout: Option<Layout>,
     pub negotiable: bool,
-    pub price: f32,
+    pub price: f64,
     pub property_type: PropertyType,
-    pub published_at: String,
-    pub room_count: Option<u8>,
+    pub published_at: DateTime<Utc>,
+    pub room_count: Option<i16>,
     pub seller_name: String,
     pub seller_type: SellerType,
-    pub surface: Option<u32>,
+    pub surface: Option<i32>,
     pub title: String,
-    pub year: Option<u32>,
+    pub year: Option<i32>,
 }

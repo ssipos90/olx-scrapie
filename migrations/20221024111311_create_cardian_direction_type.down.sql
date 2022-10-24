@@ -1,1 +1,1 @@
--- Add down migration script here
+DROP TYPE cardinal_direction;
