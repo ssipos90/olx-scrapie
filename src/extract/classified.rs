@@ -28,6 +28,21 @@ pub enum Layout {
     Fancy,
 }
 
+impl Layout {
+    pub fn find_in_str(s: &str) -> Option<Self> {
+        if s.contains("vagon") {
+            return Some(Self::Wagon);
+        }
+        if s.contains("semidecomandat") {
+            return Some(Self::SemiFancy);
+        }
+        if s.contains("decomandat") {
+            return Some(Self::Fancy);
+        }
+        None
+    }
+}
+
 impl TryFrom<&str> for Layout {
     type Error = anyhow::Error;
 
@@ -48,6 +63,25 @@ pub enum CardinalDirection {
     South,
     East,
     West,
+}
+
+impl CardinalDirection {
+    pub fn find_in_str(s: &str) -> Option<Self> {
+        let s = s.to_lowercase();
+        if s.contains("la sud") || s.contains("sudica") {
+            return Some(Self::South);
+        }
+        if s.contains("la est") || s.contains("estica") {
+            return Some(Self::East);
+        }
+        if s.contains("la vest") || s.contains("vestica") {
+            return Some(Self::West);
+        }
+        if s.contains("la nord") || s.contains("nordica") {
+            return Some(Self::North);
+        }
+        None
+    }
 }
 
 impl TryFrom<&str> for CardinalDirection {
@@ -71,7 +105,7 @@ pub enum PropertyType {
     House,
 }
 
-const APARTMENT_MATCHES: [&str;6] = [
+const APARTMENT_MATCHES: [&str; 6] = [
     "apartament",
     "Apartament",
     "garsoniera",
@@ -80,23 +114,18 @@ const APARTMENT_MATCHES: [&str;6] = [
     "Studio",
 ];
 
-const HOUSE_MATCHES: [&str;4] = [
-    "casa",
-    "Casa",
-    "vila",
-    "Vila",
-];
+const HOUSE_MATCHES: [&str; 4] = ["casa", "Casa", "vila", "Vila"];
 
 impl PropertyType {
-    fn from_str (default: Self, value: &str) -> Self {
+    pub fn find_in_str(value: &str) -> Option<Self> {
         if APARTMENT_MATCHES.iter().any(|&m| value.contains(m)) {
-            return Self::Apartment;
+            return Some(Self::Apartment);
         }
         if HOUSE_MATCHES.iter().any(|&m| value.contains(m)) {
-            return Self::House;
+            return Some(Self::House);
         }
 
-        default
+        None
     }
 }
 

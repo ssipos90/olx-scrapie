@@ -5,7 +5,7 @@ olx.ro (and connex storia.ro items) real estate scraper ().
 ## Todo
 - [ ] extract data from pages
   - [x] async workers
-  - [ ] establish data structure
+  - [x] establish data structure
   - [ ] selectors and processors
 
 - [ ] Sessions management (upgrade listing sessions)

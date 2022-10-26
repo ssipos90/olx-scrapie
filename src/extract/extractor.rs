@@ -49,7 +49,7 @@ fn parse_selector(selector: &str) -> anyhow::Result<scraper::Selector> {
 }
 
 impl Extractor {
-    fn find_room_number (s: &str) -> Option<i16> {
+    fn find_room_number(s: &str) -> Option<i16> {
         if s.contains("1 camera") || s.contains("garsoniera") || s.contains("Garsoniera") {
             return Some(1);
         }
@@ -86,7 +86,9 @@ impl Extractor {
                 year: parse_selector(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
                 floor: parse_selector(r#"div[data-testid="qa-advert-slot"]+ul ul li"#)?,
                 property_type: parse_selector(r#"div[data-cy="ad_description"] > div"#)?,
-                room_count: parse_selector(r#"h1[data-cy="title"], div[data-cy="ad_description"] > div"#)?,
+                room_count: parse_selector(
+                    r#"h1[data-cy="title"], div[data-cy="ad_description"] > div"#,
+                )?,
             },
             // storia: ExtractorSelectors {
             // },
@@ -99,20 +101,38 @@ impl Extractor {
         page: &'b SavedPage,
     ) -> anyhow::Result<Classified<'a, 'b>> {
         let document = Html::parse_document(&page.content);
+        let smf = document
+            .select(&self.olx.published_at)
+            .find_map(|item| {
+                let s = item.text().fold(String::new(), |a, b| a + b).trim();
+                if s.len() == 0 {
+                    None
+                } else {
+                    Some(s)
+                }
+            })
+            .ok_or_else(|| anyhow::anyhow!("Failed to find published_at."))
+            .map(|s| {
+                if let Some(s) = s.strip_prefix("Postat azi la ") {
+                    let time = chrono::NaiveTime::parse_from_str(s, "%H:%M")
+                        .context("Failed matching today's time in published at.")?;
+                    return chrono::offset::Utc::today()
+                        .and_time(time)
+                        .context("Failed to update published at time.");
+                }
 
+                if let Some(s) = s.strip_prefix("Postat la ") {
+                    return DateTime::parse_from_str(s, "%d %b %Y")
+                        .context("Failed to parse published_at")
+                        .map(|date| date.with_timezone(&Utc));
+                }
+                Err(anyhow::anyhow!("Nothing matched published at patterns."))
+            })??;
         match page.page_type {
             PageType::OlxItem => Ok(Classified {
                 session,
                 url: &page.url,
-                published_at: DateTime::parse_from_str(
-                    document
-                        .select(&self.olx.published_at)
-                        .find_map(|item| item.text().next())
-                        .ok_or_else(|| anyhow::anyhow!("Failed to find published_at."))?,
-                    "%Y %b %d %H:%M:%S%.3f %z",
-                )
-                .context("Failed to parse published_at")?
-                .with_timezone(&Utc),
+                published_at: smf,
                 title: document
                     .select(&self.olx.title)
                     .find_map(|item| item.text().map(|s| s.to_string()).next())
@@ -136,18 +156,17 @@ impl Extractor {
                     .ok_or_else(|| anyhow::anyhow!("Failed to find seller name."))?,
                 layout: document
                     .select(&self.olx.layout)
-                    .find_map(|item| item.text().find_map(|s| Layout::try_from(s).ok())),
+                    .find_map(|item| item.text().find_map(Layout::find_in_str)),
                 surface: document
                     .select(&self.olx.surface)
                     .find_map(|item| item.text().find_map(|s| s.parse().ok())),
                 property_type: document
                     .select(&self.olx.property_type)
-                    .find_map(|item| item.text().map(PropertyType::from).next())
+                    .find_map(|item| item.text().find_map(PropertyType::find_in_str))
                     .unwrap_or(PropertyType::Apartment),
-                face: document.select(&self.olx.face).find_map(|item| {
-                    item.text()
-                        .find_map(|s| CardinalDirection::try_from(s).ok())
-                }),
+                face: document
+                    .select(&self.olx.face)
+                    .find_map(|item| item.text().find_map(CardinalDirection::find_in_str)),
                 year: document
                     .select(&self.olx.year)
                     .find_map(|item| item.text().find_map(|s| s.parse().ok())),
@@ -336,13 +355,29 @@ async fn load_saved_page(pool: &PgPool, session: &Uuid) -> Result<Option<SavedPa
 
 #[cfg(test)]
 mod tests {
-    use super::Extractor;
+    use super::{Extractor, SavedPage};
+    use crate::page::PageType;
 
     #[test]
     fn initialize_extractor() {
-        if let Err(e) = Extractor::try_new() {
-            eprintln!("{:?}", e);
-            panic!("explicit panic.");
-        }
+        assert!(Extractor::try_new().is_ok());
+    }
+
+    #[test]
+    fn extract_olx_works() {
+        let extractor = Extractor::try_new().unwrap();
+        let session = uuid::Uuid::new_v4();
+        let page = SavedPage {
+            url: "https://www.olx.ro/d/oferta/garsoniera-uzina-2-IDgC0Kq.html".into(),
+            content: String::from_utf8(
+                std::fs::read("src/extract/test_assets/extract_olx_works.html").unwrap(),
+            )
+            .unwrap(),
+            page_type: PageType::OlxItem,
+            crawled_at: chrono::offset::Utc::now(),
+        };
+        let classified = extractor.extract(&session, &page).unwrap();
+
+        assert_eq!(classified.title, "garsoniera Uzina 2");
     }
 }
