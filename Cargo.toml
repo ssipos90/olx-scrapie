@@ -12,7 +12,7 @@ name = "olx_scrapie"
 
 [dependencies]
 anyhow = "1.0"
-chrono = "0.4"
+chrono = { version = "0.4", features = [ "serde" ] }
 clap = { version = "4", features = ["derive"] }
 dotenvy = "0.15"
 futures = "0.3"
@@ -25,6 +25,7 @@ sqlx = { version = "0.6", features = ["postgres", "runtime-tokio-rustls", "time"
 tokio = { version = "1", features = ["macros", "test-util", "fs", "net", "rt-multi-thread"] }
 tracing = { version = "0.1", features = ["log", "async-await"] }
 tracing-subscriber = "0.3"
+unescape = "0.1"
 url = "2"
 uuid = { version = "1", features = ["v4"] }
 

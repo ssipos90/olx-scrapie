@@ -1,0 +1,136 @@
+{
+  "category": {
+    "id": 1155,
+    "type": "real_estate"
+  },
+  "contact": {
+    "chat": true,
+    "courier": false,
+    "name": "Monica",
+    "negotiation": true,
+    "phone": true
+  },
+  "createdTime": "2022-10-25T13:22:40+03:00",
+  "delivery": {
+    "rock": {
+      "active": false,
+      "mode": null,
+      "offer_id": null
+    }
+  },
+  "description": "Etaj parter, in bloc de apartamentele, str. Laminoarelor nr.4,  Brasov, încalzire electica (apa, caldura, aragaz) mobilata, utilata (frigider, cuptor microunde, boiler electric, plita electica). Se petrece o luna garantie, o luna avans. State autobuz la 5 min.",
+  "id": 245480718,
+  "isActive": true,
+  "isBusiness": false,
+  "isHighlighted": false,
+  "isJob": false,
+  "isPromoted": false,
+  "itemCondition": "",
+  "lastRefreshTime": "2022-10-25T13:24:47+03:00",
+  "location": {
+    "cityId": 26711,
+    "cityName": "Brasov",
+    "cityNormalizedName": "brasov",
+    "districtId": 0,
+    "districtName": null,
+    "pathName": "Brasov",
+    "regionId": 4,
+    "regionName": "Brasov",
+    "regionNormalizedName": "brasov-judet"
+  },
+  "map": {
+    "lat": 45.6557,
+    "lon": 25.6108,
+    "radius": 8,
+    "show_detailed": false,
+    "zoom": 13
+  },
+  "params": [
+    {
+      "key": "m",
+      "name": "Suprafata utila",
+      "normalizedValue": "24",
+      "type": "input",
+      "value": "24 m²"
+    },
+    {
+      "key": "constructie",
+      "name": "An constructie",
+      "normalizedValue": "1990-2000",
+      "type": "select",
+      "value": "1990 – 2000"
+    },
+    {
+      "key": "floor",
+      "name": "Etaj",
+      "normalizedValue": "parter",
+      "type": "select",
+      "value": "Parter"
+    }
+  ],
+  "partner": {
+    "code": ""
+  },
+  "photos": [
+    "https://frankfurt.apollo.olxcdn.com:443/v1/files/2i2w3927ow9i3-RO/image;s=429x537"
+  ],
+  "photosSet": [
+    "https://frankfurt.apollo.olxcdn.com:443/v1/files/2i2w3927ow9i3-RO/image;s=389x272 1x,https://frankfurt.apollo.olxcdn.com:443/v1/files/2i2w3927ow9i3-RO/image;s=516x361 2x,https://frankfurt.apollo.olxcdn.com:443/v1/files/2i2w3927ow9i3-RO/image;s=1000x700 3x"
+  ],
+  "price": {
+    "budget": false,
+    "displayValue": "200 €",
+    "exchange": false,
+    "free": false,
+    "regularPrice": {
+      "currencyCode": "EUR",
+      "currencySymbol": "€",
+      "negotiable": false,
+      "priceFormatConfig": {
+        "decimalSeparator": ",",
+        "thousandsSeparator": " "
+      },
+      "value": 200
+    }
+  },
+  "promotion": {
+    "b2c_ad_page": false,
+    "highlighted": false,
+    "options": [],
+    "premium_ad_page": false,
+    "top_ad": false,
+    "urgent": false
+  },
+  "protectPhone": true,
+  "safedeal": {
+    "allowed_quantity": [],
+    "safedeal_blocked": false,
+    "status": "unactive",
+    "weight": 0,
+    "weight_grams": 0
+  },
+  "salary": null,
+  "shop": {
+    "subdomain": null
+  },
+  "status": "active",
+  "title": "garsoniera Uzina 2",
+  "url": "https://www.olx.ro/d/oferta/garsoniera-uzina-2-IDgC0Kq.html",
+  "urlPath": "/d/oferta/garsoniera-uzina-2-IDgC0Kq.html",
+  "user": {
+    "about": "",
+    "bannerDesktopURL": "",
+    "company_name": "",
+    "created": "2019-05-23T21:20:32+03:00",
+    "id": 212407930,
+    "isOnline": false,
+    "lastSeen": "2022-10-25T18:20:14+03:00",
+    "logo": null,
+    "logo_ad_page": null,
+    "name": "Monica",
+    "otherAdsEnabled": true,
+    "photo": null,
+    "sellerType": null,
+    "socialNetworkAccountType": null
+  }
+}

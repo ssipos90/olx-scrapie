@@ -1,11 +1,17 @@
 use anyhow::Context;
 use uuid::Uuid;
 
+#[derive(serde::Deserialize)]
+pub enum Currency {
+    EUR,
+    RON,
+    USD,
+}
+
 pub type PgTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
 pub fn try_parse_session(s: &str) -> anyhow::Result<Uuid> {
-    let session = Uuid::try_parse(s)
-        .context("Failed to parse UUID")?;
+    let session = Uuid::try_parse(s).context("Failed to parse UUID")?;
     if session
         .get_version()
         .map_or(true, |v| v != uuid::Version::Random)
