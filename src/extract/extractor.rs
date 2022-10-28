@@ -4,7 +4,7 @@ use futures::StreamExt;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{config::Config, page::PageType, session::Session};
+use crate::{config::Config, extract::olx, extract::storia, page::PageType, session::Session};
 
 use super::classified::{CardinalDirection, Classified, Layout, PropertyType, SellerType};
 
@@ -53,8 +53,12 @@ async fn spawn_worker(pool: PgPool, session: Uuid) -> anyhow::Result<()> {
         match load_saved_page(&pool, &session).await {
             Ok(Some(page)) => {
                 tracing::info!("Extracting {}", &page.url);
-                // let classified = Classified {};
-                // save_classified(&pool, &classified).await?;
+                let classified = match page.page_type {
+                    PageType::OlxList => todo!(),
+                    PageType::OlxItem => olx::parse_classified(&session, &page)?,
+                    PageType::StoriaItem => storia::parse_classified(&session, &page)?,
+                };
+                save_classified(&pool, &classified).await?;
             }
             Ok(None) => {
                 tracing::info!("No more pages to extract, breaking...");
@@ -75,7 +79,10 @@ async fn spawn_worker(pool: PgPool, session: Uuid) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn _save_classified<'a, 'b>(pool: &PgPool, classified: &Classified<'a, 'b>) -> sqlx::Result<()> {
+async fn save_classified<'a, 'b>(
+    pool: &PgPool,
+    classified: &Classified<'a, 'b>,
+) -> sqlx::Result<()> {
     sqlx::query!(
         r#"
         INSERT INTO classifieds

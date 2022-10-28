@@ -1,43 +1,43 @@
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 
-use crate::util::Currency;
+// use crate::util::Currency;
 
 use super::{
     classified::{Classified, PropertyType, SellerType},
     extractor::SavedPage,
 };
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct OlxClassifiedLocation {
-    city_name: String,
-    region_name: String,
-}
+// #[derive(serde::Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// struct OlxClassifiedLocation {
+//     city_name: String,
+//     region_name: String,
+// }
 
 #[derive(serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct OlxClassifiedParam {
     key: String,
-    name: String,
-    normalized_value: String,
+    // name: String,
+    // normalized_value: String,
     value: String,
 }
 
 #[derive(serde::Deserialize)]
 struct OlxClassifiedUser {
     company_name: String,
-    created: DateTime<Utc>,
+    // created: DateTime<Utc>,
     name: String,
-    #[serde(rename = "camelCase")]
-    seller_type: Option<()>,
+    // #[serde(rename = "camelCase")]
+    // seller_type: Option<()>,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OlxClassifiedRegularPrice {
     value: f64,
-    currency_code: Currency,
+    // currency_code: Currency,
     negotiable: bool,
 }
 
@@ -52,18 +52,18 @@ struct OlxClassifiedPrice {
 struct OlxClassified {
     created_time: DateTime<Utc>,
     description: String,
-    is_active: bool,
-    is_business: bool,
-    is_highlighted: bool,
-    is_promoted: bool,
-    last_refresh_time: DateTime<Utc>,
-    location: OlxClassifiedLocation,
+    // is_active: bool,
+    // is_business: bool,
+    // is_highlighted: bool,
+    // is_promoted: bool,
+    // last_refresh_time: DateTime<Utc>,
+    // location: OlxClassifiedLocation,
     params: Vec<OlxClassifiedParam>,
     // https://frankfurt.apollo.olxcdn.com:443/v1/files/2i2w3927ow9i3-RO/image;s=429x537"
-    photos: Vec<String>,
+    // photos: Vec<String>,
     price: OlxClassifiedPrice,
     title: String,
-    status: String,
+    // status: todo!(),
     user: OlxClassifiedUser,
 }
 
@@ -169,7 +169,7 @@ mod tests {
         let page = SavedPage {
             url: "https://www.olx.ro/d/oferta/garsoniera-uzina-2-IDgC0Kq.html".into(),
             content: String::from_utf8(
-                std::fs::read("src/extract/test_assets/extract_olx_works.html").unwrap(),
+                std::fs::read("src/extract/test_assets/olx-item.html").unwrap(),
             )
             .unwrap(),
             page_type: PageType::OlxItem,
@@ -179,13 +179,15 @@ mod tests {
 
         let _olx_classified: OlxClassifiedWrapper = serde_json::from_str(json.as_str()).unwrap();
     }
+
     #[test]
-    fn smf() {
+    fn parse_classifieds() {
+        // TODO: maybe loop over multiple
         let session = uuid::Uuid::new_v4();
         let page = SavedPage {
             url: "https://www.olx.ro/d/oferta/garsoniera-uzina-2-IDgC0Kq.html".into(),
             content: String::from_utf8(
-                std::fs::read("src/extract/test_assets/extract_olx_works.html").unwrap(),
+                std::fs::read("src/extract/test_assets/olx-item.html").unwrap(),
             )
             .unwrap(),
             page_type: PageType::OlxItem,
