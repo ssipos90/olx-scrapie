@@ -4,7 +4,7 @@ CREATE TABLE classifieds (
     revision     SMALLINT      NOT NULL,
     extracted_at TIMESTAMPTZ   NOT NULL,
 
-    face cardinal_direction,
+    orientation cardinal_direction,
     floor smallint,
     layout property_type,
     negotiable boolean,

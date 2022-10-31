@@ -8,6 +8,19 @@ pub enum Currency {
     USD,
 }
 
+impl TryFrom<&str> for Currency {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value.trim().to_lowercase().as_str() {
+            "eur" => Ok(Self::EUR),
+            "usd" => Ok(Self::USD),
+            "ron" => Ok(Self::RON),
+            _ => Err(anyhow::anyhow!("Cannot parse unknown currency."))
+        }
+    }
+}
+
 pub type PgTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
 pub fn try_parse_session(s: &str) -> anyhow::Result<Uuid> {

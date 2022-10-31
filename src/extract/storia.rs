@@ -1,24 +1,18 @@
 use anyhow::{anyhow, Context};
-use chrono::{DateTime, Offset, Utc};
+use chrono::{DateTime, Utc};
 
 use crate::util::Currency;
 
 use super::{
-    classified::{Classified, PropertyType, SellerType},
+    classified::{CardinalDirection, Classified, Layout, PropertyType, SellerType},
     extractor::SavedPage,
 };
-
-#[derive(serde::Deserialize)]
-struct StoriaClassifiedOwner {
-    name: String,
-}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Info {
     label: String,
     values: Vec<String>,
-    unit: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -28,45 +22,41 @@ struct Characteristic {
     value: String,
     label: String,
     localized_value: String,
+    currency: String,
 }
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Image {
-    thumbnail: String,
-    small: String,
-    medium: String,
-    large: String,
-}
+// #[derive(serde::Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// struct Image {
+//     thumbnail: String,
+//     small: String,
+//     medium: String,
+//     large: String,
+// }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Owner {
+    name: String,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Agency {
-}
+struct Agency {}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Breadcrumb {
-}
+struct Breadcrumb {}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoriaClassified {
-    advertizer_type: String,
     created_at: DateTime<Utc>,
     title: String,
     top_information: Vec<Info>,
-    additional_information: Vec<Info>,
     characteristics: Vec<Characteristic>,
-    images: Vec<Image>,
+    // images: Vec<Image>,
     owner: Owner,
-    agency: Agency, // TODO: maybe get phone number
-    breadcrumbs: Vec<Breadcrumb>,
 }
 
 #[derive(serde::Deserialize)]
@@ -78,13 +68,13 @@ struct StoriaClassifiedInnerWrapper {
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoriaClassifiedMiddleWrapper {
-    page_props:StoriaClassifiedInnerWrapper,
+    page_props: StoriaClassifiedInnerWrapper,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoriaClassifiedOuterWrapper {
-    page: StoriaClassifiedMiddleWrapper,
+    props: StoriaClassifiedMiddleWrapper,
 }
 
 pub fn extract_page_json(page: &SavedPage) -> anyhow::Result<String> {
@@ -111,31 +101,78 @@ pub fn parse_classified<'a, 'b>(
     let wrapper: StoriaClassifiedOuterWrapper =
         serde_json::from_str(json.as_str()).context("Failed parsing Storia JSON.")?;
 
-    let o = wrapper.page.page_props.ad;
+    let o = wrapper.props.page_props.ad;
+
+    let (raw_price, raw_currency): (&str, &str) = o
+        .characteristics
+        .iter()
+        .find_map(|c| {
+            if c.key == "price" {
+                return Some((c.value.as_str(), c.currency.as_str()));
+            }
+            None
+        })
+        .ok_or_else(|| anyhow::anyhow!("Failed to find price characteristic"))?;
 
     Ok(Classified {
         session,
         url: &page.url,
-        face: o.params.iter().find_map(|_| None),
-        floor: o
-            .params
+        orientation: o
+            .characteristics
             .iter()
-            .find_map(|p| match p.key == "floor" {
-                true => Some(p.value.as_str()),
-                _ => None,
+            .find_map(|i| {
+                if i.label == "main_solar_orient" {
+                    return Some(i.value.as_str().trim());
+                }
+                None
             })
-            .map_or(Ok(None), |v| match v {
-                "parter" | "Parter" => Ok(Some(0)),
-                v => v.parse().map(Some).context("Failed parsing Storia floor"),
-            })?,
-        layout: o.params.iter().find_map(|_| None),
-        negotiable: o.price.regular_price.negotiable,
-        price: o.price.regular_price.value,
-        property_type: PropertyType::find_in_str(o.description.as_str())
-            .unwrap_or(PropertyType::Apartment),
-        published_at: o.created_time,
-        room_count: None, // TODO:
-        seller_name: o.user.name,
+            .map(|o| CardinalDirection::try_from(o).map(Some))
+            .unwrap_or(Ok(None))?,
+        floor: o.top_information.iter().find_map(|p| {
+            if p.label == "floor" {
+                if let Some(f) = p.values.iter().find_map(|v| v.strip_prefix('/')) {
+                    return f.parse::<i16>().ok();
+                }
+            }
+            None
+        }),
+        layout: o.characteristics.iter().find_map(|c| {
+            if c.key == "divisioning_type" {
+                return Layout::try_from(c.localized_value.as_str()).ok();
+            }
+            None
+        }),
+        negotiable: false,
+        price: raw_price.parse().context("Failed to parse price.")?,
+        currency: Currency::try_from(raw_currency)?,
+        property_type: o
+            .characteristics
+            .iter()
+            .find_map(|c| {
+                if c.key == "building_type" {
+                    return Some(c.localized_value.as_str());
+                }
+                None
+            })
+            .ok_or_else(|| anyhow!("Failed to find property type."))
+            .map(PropertyType::try_from)??,
+        published_at: o.created_at,
+        room_count: o
+            .characteristics
+            .iter()
+            .find_map(|c| {
+                if c.key == "rooms_num" {
+                    return Some(
+                        c.value
+                            .parse::<i16>()
+                            .map(Some)
+                            .context("Failed to parse room count."),
+                    );
+                }
+                None
+            })
+            .unwrap_or(Ok(None))?,
+        seller_name: o.owner.name,
         seller_type: SellerType::Private,
         surface: None,
         title: o.title,
@@ -145,9 +182,7 @@ pub fn parse_classified<'a, 'b>(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        super::extractor::SavedPage, extract_page_json, parse_classified,
-    };
+    use super::{super::extractor::SavedPage, extract_page_json, parse_classified};
     use crate::page::PageType;
 
     const ITEMS: [(&str, &str); 1] = [(

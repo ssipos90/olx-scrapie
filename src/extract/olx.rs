@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 
 // use crate::util::Currency;
 
+use crate::util::Currency;
+
 use super::{
     classified::{Classified, PropertyType, SellerType},
     extractor::SavedPage,
@@ -37,7 +39,7 @@ struct OlxClassifiedUser {
 #[serde(rename_all = "camelCase")]
 struct OlxClassifiedRegularPrice {
     value: f64,
-    // currency_code: Currency,
+    currency_code: Currency,
     negotiable: bool,
 }
 
@@ -127,7 +129,7 @@ pub fn parse_classified<'a, 'b>(
     Ok(Classified {
         session,
         url: &page.url,
-        face: o.params.iter().find_map(|_| None),
+        orientation: o.params.iter().find_map(|_| None),
         floor: o
             .params
             .iter()
@@ -142,6 +144,7 @@ pub fn parse_classified<'a, 'b>(
         layout: o.params.iter().find_map(|_| None),
         negotiable: o.price.regular_price.negotiable,
         price: o.price.regular_price.value,
+        currency: o.price.regular_price.currency_code,
         property_type: PropertyType::find_in_str(o.description.as_str())
             .unwrap_or(PropertyType::Apartment),
         published_at: o.created_time,
@@ -182,7 +185,7 @@ mod tests {
 
     #[test]
     fn parse_classifieds() {
-        // TODO: maybe loop over multiple
+        // TODO: maybe loop over multiple test cases
         let session = uuid::Uuid::new_v4();
         let page = SavedPage {
             url: "https://www.olx.ro/d/oferta/garsoniera-uzina-2-IDgC0Kq.html".into(),

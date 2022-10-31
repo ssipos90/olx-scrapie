@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::util::Currency;
+
 #[derive(sqlx::Type, Copy, Clone)]
 #[sqlx(type_name = "seller_type", rename_all = "snake_case")]
 pub enum SellerType {
@@ -88,12 +90,12 @@ impl TryFrom<&str> for CardinalDirection {
     type Error = anyhow::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value.to_lowercase().as_str() {
-            "nord" | "nordic" => Ok(Self::North),
-            "sud" | "sudic" => Ok(Self::South),
-            "est" | "estic" => Ok(Self::East),
-            "vest" | "vestic" => Ok(Self::West),
-            _ => Err(anyhow::anyhow!("Failed to parse facing direction.")),
+        match value {
+            "north" | "nord" | "nordic" => Ok(Self::North),
+            "south" | "sud" | "sudic" => Ok(Self::South),
+            "east" | "est" | "estic" => Ok(Self::East),
+            "west" | "vest" | "vestic" => Ok(Self::West),
+            _ => Err(anyhow::anyhow!("Failed to parse cardinal direction.")),
         }
     }
 }
@@ -133,8 +135,8 @@ impl TryFrom<&str> for PropertyType {
     type Error = anyhow::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value.to_lowercase().as_str() {
-            "apartament" => Ok(Self::Apartment),
+        match value {
+            "apartament" | "garsoniera" => Ok(Self::Apartment),
             "casa" => Ok(Self::House),
             _ => Err(anyhow::anyhow!("Failed to parse property type.")),
         }
@@ -145,11 +147,12 @@ pub struct Classified<'a, 'b> {
     pub session: &'a Uuid,
     pub url: &'b str,
 
-    pub face: Option<CardinalDirection>,
+    pub orientation: Option<CardinalDirection>,
     pub floor: Option<i16>,
     pub layout: Option<Layout>,
     pub negotiable: bool,
     pub price: f64,
+    pub currency: Currency,
     pub property_type: PropertyType,
     pub published_at: DateTime<Utc>,
     pub room_count: Option<i16>,

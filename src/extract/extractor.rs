@@ -92,7 +92,7 @@ async fn save_classified<'a, 'b>(
             revision,
             extracted_at,
 
-            face,
+            orientation,
             floor,
             layout,
             negotiable,
@@ -129,7 +129,7 @@ async fn save_classified<'a, 'b>(
         "#,
         classified.session,
         &classified.url,
-        classified.face as Option<CardinalDirection>,
+        classified.orientation as Option<CardinalDirection>,
         classified.floor,
         classified.layout as Option<Layout>,
         &classified.negotiable,
