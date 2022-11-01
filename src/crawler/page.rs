@@ -136,7 +136,8 @@ pub fn save_test_asset(asset_name: &str, body: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{config::TEST_ASSETS_DIR, page::get_list_urls};
+    use super::get_list_urls;
+    use crate::config::TEST_ASSETS_DIR;
 
     #[test]
     fn can_find_list_items() {
@@ -149,6 +150,6 @@ mod tests {
 
         // TODO: this is a crappy test, but will suffice for now
         // There are usually 45 items, but some might be ads or idk
-        assert!(results >= 40);
+        assert!(results >= 38);
     }
 }
