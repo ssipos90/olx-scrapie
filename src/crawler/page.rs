@@ -24,15 +24,16 @@ pub fn get_list_next_page_url(document: &Html) -> Option<Url> {
         .and_then(|url| Url::parse(&url).ok())
 }
 
-pub fn get_list_urls(document: &Html) -> Vec<PageUrl> {
+pub fn get_list_urls(document: &Html) -> anyhow::Result<Vec<PageUrl>> {
     let selector =
         scraper::Selector::parse(r#"table#offers_table td.offer a[data-cy="listing-ad-title"]"#)
-            .unwrap();
-    document
+            .map_err(|_| anyhow::anyhow!("Failed to parse selector."))?;
+
+    Ok(document
         .select(&selector)
         .flat_map(|item| item.value().attr("href"))
-        .flat_map(|url| PageUrl::parse(url).ok())
-        .collect::<Vec<_>>()
+        .flat_map(|url| PageUrl::parse(url))
+        .collect::<Vec<_>>())
 }
 
 #[tracing::instrument(skip_all, fields(url = %url))]
@@ -72,7 +73,7 @@ pub async fn save_list_page_url<'a>(
         .await
         .context("Failed to save list page")?;
 
-    let list_page_items = get_list_urls(&list_page_document);
+    let list_page_items = get_list_urls(&list_page_document)?;
     tracing::info!("found {} items.", list_page_items.len());
 
     // for item_page_url in list_page_items {
@@ -146,7 +147,7 @@ mod tests {
 
         let document = scraper::Html::parse_document(html);
 
-        let results = get_list_urls(&document).len();
+        let results = get_list_urls(&document).unwrap().len();
 
         // TODO: this is a crappy test, but will suffice for now
         // There are usually 45 items, but some might be ads or idk

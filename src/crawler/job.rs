@@ -1,6 +1,8 @@
-use crate::{crawler::page::{
-    get_list_next_page_url, get_list_urls, get_page, save_page
-}, page::{PageType, SavedPage}, util::PgTransaction};
+use crate::{
+    crawler::page::{get_list_next_page_url, get_list_urls, get_page, save_page},
+    page::{PageType, SavedPage},
+    util::PgTransaction,
+};
 use anyhow::Context;
 use sqlx::PgPool;
 
@@ -249,7 +251,7 @@ async fn run_job<'a>(
                     .await
                     .map_err(ProcessedJobError::RetryableError)?;
             }
-            let pages_urls = get_list_urls(&document);
+            let pages_urls = get_list_urls(&document).map_err(ProcessedJobError::FatalError)?;
             tracing::info!("Found {} item urls", pages_urls.len());
             for page_url in pages_urls {
                 insert_job(
