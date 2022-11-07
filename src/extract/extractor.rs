@@ -35,7 +35,7 @@ pub async fn extract<'a>(options: &'a ExtractOptions<'a>) -> anyhow::Result<()> 
     }
 
     let workers = futures::stream::iter((0..4).into_iter().map(|c| {
-        tracing::info!("Spawned worker {}.", c);
+        tracing::info!("Spawning worker {}.", c);
         tokio::spawn(spawn_worker(options.pool.clone(), session.session))
     }))
     .buffer_unordered(3)
@@ -46,19 +46,29 @@ pub async fn extract<'a>(options: &'a ExtractOptions<'a>) -> anyhow::Result<()> 
     Ok(())
 }
 
-async fn spawn_worker(pool: PgPool, session: Uuid) -> anyhow::Result<()> {
+async fn spawn_worker(pool: PgPool, session: Uuid) {
     let sleepy = std::time::Duration::from_secs(1);
 
     loop {
         match load_saved_page(&pool, &session).await {
             Ok(Some(page)) => {
                 tracing::info!("Extracting {}", &page.url);
-                let classified = match page.page_type {
+                let classified_result = match page.page_type {
                     PageType::OlxList => todo!(),
-                    PageType::OlxItem => olx::parse_classified(&session, &page)?,
-                    PageType::StoriaItem => storia::parse_classified(&session, &page)?,
+                    PageType::OlxItem => olx::parse_classified(&session, &page),
+                    PageType::StoriaItem => storia::parse_classified(&session, &page),
                 };
-                save_classified(&pool, &classified).await?;
+
+                match classified_result {
+                    Ok(classified) => {
+                        if let Err(e) = save_classified(&pool, &classified).await {
+                            tracing::error!("Failed saving classified: {:?}", e);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed parsing classified: {:?}", e);
+                    }
+                }
             }
             Ok(None) => {
                 tracing::info!("No more pages to extract, breaking...");
@@ -70,15 +80,15 @@ async fn spawn_worker(pool: PgPool, session: Uuid) -> anyhow::Result<()> {
             }
             Err(e) => {
                 tracing::error!("Failed to retrieve page ({:?})", e);
-                return Err(anyhow::anyhow!(e));
+                return;
             }
         };
+        tracing::info!("Loop");
     }
-    tracing::info!("Finished working.");
-
-    Ok(())
+    tracing::info!("Finished working");
 }
 
+#[tracing::instrument(skip_all)]
 async fn save_classified<'a, 'b>(
     pool: &PgPool,
     classified: &Classified<'a, 'b>,

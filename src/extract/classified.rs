@@ -23,7 +23,7 @@ impl TryFrom<&str> for SellerType {
 }
 
 #[derive(sqlx::Type, Copy, Clone)]
-#[sqlx(type_name = "proparty_layout", rename_all = "snake_case")]
+#[sqlx(type_name = "property_layout", rename_all = "snake_case")]
 pub enum Layout {
     Wagon,
     SemiFancy,

@@ -6,7 +6,7 @@ CREATE TABLE classifieds (
 
     orientation cardinal_direction,
     floor smallint,
-    layout property_type,
+    layout property_layout,
     negotiable boolean,
     price float NOT NULL,
     property_type property_type NOT NULL,

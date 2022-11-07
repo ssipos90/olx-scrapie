@@ -16,15 +16,16 @@ pub struct CrawlOptions<'a> {
     pub session: Option<uuid::Uuid>,
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn crawl<'a>(options: &'a CrawlOptions<'a>) -> anyhow::Result<()> {
     let session = match options.session {
         Some(session) => {
             tracing::info!("Reusing session {}", session);
 
-            if sqlx::query!(
+            match sqlx::query!(
                 r#"
-                SELECT session
+                SELECT
+                    session,
+                    crawled_at
                 FROM sessions
                 WHERE session=$1
                 "#,
@@ -33,9 +34,13 @@ pub async fn crawl<'a>(options: &'a CrawlOptions<'a>) -> anyhow::Result<()> {
             .fetch_optional(&options.pool)
             .await
             .context("Failed retrieving existing session.")?
-            .is_none()
             {
-                return Err(anyhow::anyhow!("No session found in DB."));
+                Some(s) => {
+                    if s.crawled_at.is_some() {
+                        return Err(anyhow::anyhow!("Session is already crawled."));
+                    }
+                },
+                None => return Err(anyhow::anyhow!("No session found in DB.")),
             };
 
             session

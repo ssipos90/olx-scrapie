@@ -17,7 +17,7 @@ impl CrawlCmd {
             .build()
             .expect("Failed building the Runtime")
             .block_on(async move {
-                tracing_subscriber::fmt::init();
+                tracing_appender::rolling::never("logs", "crawler.log");
 
                 let session: Option<Uuid> = match &self.session {
                     Some(s) => Some(try_parse_session(s)?),

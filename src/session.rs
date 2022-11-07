@@ -14,7 +14,7 @@ impl ListSessionsCmd {
             .build()
             .expect("Failed building the Runtime")
             .block_on(async move {
-                tracing_subscriber::fmt::init();
+                tracing_appender::rolling::never("logs", "session.log");
                 let pool = sqlx::postgres::PgPoolOptions::new()
                     .connect(config.database_url.as_ref())
                     .await

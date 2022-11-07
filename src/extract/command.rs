@@ -17,6 +17,7 @@ impl ExtractCmd {
             .expect("Failed building the Runtime")
             .block_on(async move {
                 tracing_subscriber::fmt::init();
+                tracing_appender::rolling::never("logs", "extracter.log");
                 let session = try_parse_session(&self.session)?;
 
                 let options = ExtractOptions {
